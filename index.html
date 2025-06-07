@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>币安币价监控系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .price-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .price-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .price-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .coin-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .price-info {
+            margin-bottom: 10px;
+        }
+
+        .price-label {
+            font-size: 0.5em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .price-value {
+            font-size: 1em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .current-price {
+            font-size: 1em !important;
+            font-weight: bold;
+        }
+
+        .change-percent {
+            font-size: 1.3em !important;
+            font-weight: bold;
+        }
+
+        .price-up {
+            color: #27ae60 !important;
+        }
+
+        .price-down {
+            color: #e74c3c !important;
+        }
+
+        .loading {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 1.2em;
+            margin: 50px 0;
+        }
+
+        .last-update {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .price-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            
+            .price-card {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .price-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 币安币价监控系统</h1>
+            <p>实时监控8大主流数字货币价格当天走势</p>
+        </div>
+
+        <div id="loading" class="loading">
+            📊 正在加载价格数据...
+        </div>
+
+        <div id="price-container" class="price-grid" style="display: none;">
+            <!-- 价格卡片将通过JavaScript动态生成 -->
+        </div>
+
+        <div id="last-update" class="last-update" style="display: none;">
+            最后更新时间: <span id="update-time"></span>
+        </div>
+    </div>
+
+    <script>
+        let priceContainer = document.getElementById('price-container');
+        let loadingDiv = document.getElementById('loading');
+        let lastUpdateDiv = document.getElementById('last-update');
+        let updateTimeSpan = document.getElementById('update-time');
+        let previousPrices = {}; // 存储前一秒的价格数据
+
+        function formatPrice(price) {
+            if (price >= 1) {
+                return price.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 6
+                });
+            } else {
+                return price.toFixed(8);
+            }
+        }
+
+        function createPriceCard(coinData) {
+            const changeClass = coinData.is_up ? 'price-up' : 'price-down';
+            const changeSymbol = coinData.is_up ? '+' : '';
+            
+            // 检查实时价格相对于前一秒的变动
+            let priceChangeClass = '';
+            const symbol = coinData.symbol; // 使用API返回的symbol
+            if (previousPrices[symbol]) {
+                const currentPrice = coinData.current_price;
+                const prevPrice = previousPrices[symbol];
+                if (currentPrice > prevPrice) {
+                    priceChangeClass = 'price-up';
+                } else if (currentPrice < prevPrice) {
+                    priceChangeClass = 'price-down';
+                }
+            }
+            
+            return `
+                <div class="price-card">
+                    <div class="coin-name">${coinData.name}</div>
+                    <div class="price-info">
+                        <div class="price-label">涨跌幅</div>
+                        <div class="price-value change-percent ${changeClass}">
+                            ${changeSymbol}${coinData.change_percent}%
+                        </div>
+                    </div>
+                    <div class="price-info">
+                        <div class="price-label">开盘价</div>
+                        <div class="price-value">$${formatPrice(coinData.open_price)}</div>
+                    </div>
+                    <div class="price-info">
+                        <div class="price-label">实时价格</div>
+                        <div class="price-value current-price ${priceChangeClass}">$${formatPrice(coinData.current_price)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updatePrices() {
+            fetch('/api/prices')
+                .then(response => response.json())
+                .then(data => {
+                    if (Object.keys(data).length > 0) {
+                        loadingDiv.style.display = 'none';
+                        priceContainer.style.display = 'grid';
+                        lastUpdateDiv.style.display = 'block';
+                        
+                        // 按照指定顺序排列币种
+                        const coinOrder = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 
+                                         'DOGEUSDT', 'BNBUSDT', 'ADAUSDT', 'TRXUSDT'];
+                        
+                        let html = '';
+                        coinOrder.forEach(symbol => {
+                            if (data[symbol]) {
+                                html += createPriceCard(data[symbol]);
+                                // 保存当前价格用于下次比较
+                                previousPrices[symbol] = data[symbol].current_price;
+                            }
+                        });
+                        
+                        priceContainer.innerHTML = html;
+                        updateTimeSpan.textContent = new Date().toLocaleString('zh-CN');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取价格数据失败:', error);
+                    loadingDiv.innerHTML = '❌ 获取价格数据失败，请稍后重试...';
+                });
+        }
+
+        // 页面加载完成后立即获取数据
+        updatePrices();
+        
+        // 每1秒更新一次数据
+        setInterval(updatePrices, 1000);
+    </script>
+</body>
+</html>
