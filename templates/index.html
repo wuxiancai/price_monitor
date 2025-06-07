@@ -144,7 +144,7 @@
     <div class="container">
         <div class="header">
             <h1>🚀 币安币价监控系统</h1>
-            <p>实时监控8大主流数字货币价格走势</p>
+            <p>实时监控8大主流数字货币价格当天走势</p>
         </div>
 
         <div id="loading" class="loading">
@@ -165,6 +165,7 @@
         let loadingDiv = document.getElementById('loading');
         let lastUpdateDiv = document.getElementById('last-update');
         let updateTimeSpan = document.getElementById('update-time');
+        let previousPrices = {}; // 存储前一秒的价格数据
 
         function formatPrice(price) {
             if (price >= 1) {
@@ -177,9 +178,32 @@
             }
         }
 
-        function createPriceCard(coinData) {
+        function createPriceCard(coinData, symbol) {
             const changeClass = coinData.is_up ? 'price-up' : 'price-down';
             const changeSymbol = coinData.is_up ? '+' : '';
+            
+            // 检查实时价格相对于前一秒的变动
+            let priceChangeClass = '';
+            if (previousPrices[symbol]) {
+                const currentPrice = parseFloat(coinData.current_price);
+                const prevPrice = parseFloat(previousPrices[symbol]);
+                const tolerance = 0.0000001; // 设置容差值
+                console.log(`${symbol}: 当前价格=${currentPrice}, 前一秒价格=${prevPrice}`);
+                
+                if (Math.abs(currentPrice - prevPrice) > tolerance) {
+                    if (currentPrice > prevPrice) {
+                        priceChangeClass = 'price-up';
+                        console.log(`${symbol}: 价格上涨，应用绿色`);
+                    } else {
+                        priceChangeClass = 'price-down';
+                        console.log(`${symbol}: 价格下跌，应用红色`);
+                    }
+                } else {
+                    console.log(`${symbol}: 价格无变化（在容差范围内）`);
+                }
+            } else {
+                console.log(`${symbol}: 首次加载，无前一秒价格数据`);
+            }
             
             return `
                 <div class="price-card">
@@ -196,7 +220,7 @@
                     </div>
                     <div class="price-info">
                         <div class="price-label">实时价格</div>
-                        <div class="price-value current-price">$${formatPrice(coinData.current_price)}</div>
+                        <div class="price-value current-price ${priceChangeClass}">$${formatPrice(coinData.current_price)}</div>
                     </div>
                 </div>
             `;
@@ -218,7 +242,14 @@
                         let html = '';
                         coinOrder.forEach(symbol => {
                             if (data[symbol]) {
-                                html += createPriceCard(data[symbol]);
+                                html += createPriceCard(data[symbol], symbol);
+                            }
+                        });
+                        
+                        // 更新完显示后，保存当前价格用于下次比较
+                        coinOrder.forEach(symbol => {
+                            if (data[symbol]) {
+                                previousPrices[symbol] = data[symbol].current_price;
                             }
                         });
                         
