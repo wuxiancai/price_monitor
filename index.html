@@ -178,21 +178,27 @@
             }
         }
 
-        function createPriceCard(coinData) {
+        function createPriceCard(coinData, symbol) {
             const changeClass = coinData.is_up ? 'price-up' : 'price-down';
             const changeSymbol = coinData.is_up ? '+' : '';
             
             // 检查实时价格相对于前一秒的变动
             let priceChangeClass = '';
-            const symbol = coinData.symbol; // 使用API返回的symbol
             if (previousPrices[symbol]) {
                 const currentPrice = coinData.current_price;
                 const prevPrice = previousPrices[symbol];
+                console.log(`${symbol}: 当前价格=${currentPrice}, 前一秒价格=${prevPrice}`);
                 if (currentPrice > prevPrice) {
                     priceChangeClass = 'price-up';
+                    console.log(`${symbol}: 价格上涨，应用绿色`);
                 } else if (currentPrice < prevPrice) {
                     priceChangeClass = 'price-down';
+                    console.log(`${symbol}: 价格下跌，应用红色`);
+                } else {
+                    console.log(`${symbol}: 价格无变化`);
                 }
+            } else {
+                console.log(`${symbol}: 首次加载，无前一秒价格数据`);
             }
             
             return `
@@ -232,8 +238,13 @@
                         let html = '';
                         coinOrder.forEach(symbol => {
                             if (data[symbol]) {
-                                html += createPriceCard(data[symbol]);
-                                // 保存当前价格用于下次比较
+                                html += createPriceCard(data[symbol], symbol);
+                            }
+                        });
+                        
+                        // 更新完显示后，保存当前价格用于下次比较
+                        coinOrder.forEach(symbol => {
+                            if (data[symbol]) {
                                 previousPrices[symbol] = data[symbol].current_price;
                             }
                         });
