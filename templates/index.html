@@ -185,18 +185,18 @@
                 <div class="price-card">
                     <div class="coin-name">${coinData.name}</div>
                     <div class="price-info">
+                        <div class="price-label">涨跌幅</div>
+                        <div class="price-value change-percent ${changeClass}">
+                            ${changeSymbol}${coinData.change_percent}%
+                        </div>
+                    </div>
+                    <div class="price-info">
                         <div class="price-label">开盘价</div>
                         <div class="price-value">$${formatPrice(coinData.open_price)}</div>
                     </div>
                     <div class="price-info">
                         <div class="price-label">实时价格</div>
                         <div class="price-value current-price">$${formatPrice(coinData.current_price)}</div>
-                    </div>
-                    <div class="price-info">
-                        <div class="price-label">涨跌幅</div>
-                        <div class="price-value change-percent ${changeClass}">
-                            ${changeSymbol}${coinData.change_percent}%
-                        </div>
                     </div>
                 </div>
             `;
