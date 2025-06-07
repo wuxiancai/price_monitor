@@ -44,32 +44,36 @@ def on_error(ws, error):
 
 def on_close(ws, close_status_code, close_msg):
     """WebSocket关闭处理"""
-    print("WebSocket连接已关闭")
+    print("WebSocket连接已关闭，5秒后重新连接...")
+    time.sleep(5)
 
 def on_open(ws):
     """WebSocket连接打开"""
     print("WebSocket连接已建立")
-    # 订阅所有币种的价格推送
     streams = [f"{coin.lower()}@ticker" for coin in COINS]
-    subscribe_msg = {
-        "method": "SUBSCRIBE",
-        "params": streams,
-        "id": 1
-    }
-    ws.send(json.dumps(subscribe_msg))
     print(f"已订阅价格推送: {streams}")
 
 def connect_websocket():
     """连接WebSocket"""
     global ws
-    websocket.enableTrace(False)
-    ws_url = "wss://stream.binance.com:9443/ws/"
-    ws = websocket.WebSocketApp(ws_url,
-                                on_open=on_open,
-                                on_message=on_message,
-                                on_error=on_error,
-                                on_close=on_close)
-    ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+    while True:
+        try:
+            print("正在连接WebSocket...")
+            websocket.enableTrace(False)
+            # 使用多流订阅的正确URL格式
+            streams = [f"{coin.lower()}@ticker" for coin in COINS]
+            stream_names = '/'.join(streams)
+            ws_url = f"wss://stream.binance.com:9443/stream?streams={stream_names}"
+            ws = websocket.WebSocketApp(ws_url,
+                                        on_open=on_open,
+                                        on_message=on_message,
+                                        on_error=on_error,
+                                        on_close=on_close)
+            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        except Exception as e:
+            print(f"WebSocket连接异常: {e}")
+            print("5秒后重新连接...")
+            time.sleep(5)
 
 def get_binance_price(symbol):
     """从WebSocket缓存获取实时价格"""
@@ -78,13 +82,13 @@ def get_binance_price(symbol):
 def update_open_prices():
     """更新开盘价（每天零点零分执行）"""
     print("更新开盘价...")
-    # 等待WebSocket连接稳定
-    time.sleep(5)
     for symbol in COINS:
         price = get_binance_price(symbol)
         if price:
             open_prices[symbol] = price
             print(f"{symbol} 开盘价: {price}")
+        else:
+            print(f"无法获取{symbol}的开盘价")
 
 def update_real_time_prices():
     """更新实时价格"""
@@ -109,26 +113,33 @@ def update_real_time_prices():
 
 def price_update_worker():
     """价格更新工作线程"""
-    # 启动WebSocket连接
-    websocket_thread = threading.Thread(target=connect_websocket, daemon=True)
-    websocket_thread.start()
-    
-    # 等待WebSocket连接建立
-    time.sleep(10)
-    
-    # 启动时先获取一次开盘价
-    update_open_prices()
-    
-    # 设置定时任务：每天零点零分更新开盘价
-    schedule.every().day.at("00:00").do(update_open_prices)
-    
-    while True:
-        # 检查定时任务
-        schedule.run_pending()
+    try:
+        # 启动WebSocket连接线程
+        ws_thread = threading.Thread(target=connect_websocket, daemon=True)
+        ws_thread.start()
         
-        # 更新实时价格（每1秒更新一次）
-        update_real_time_prices()
-        time.sleep(1)
+        # 等待WebSocket连接建立并获取初始数据
+        time.sleep(3)
+        
+        # 启动时先获取一次开盘价
+        update_open_prices()
+        
+        # 设置定时任务：每天零点零分更新开盘价
+        schedule.every().day.at("00:00").do(update_open_prices)
+        
+        while True:
+            try:
+                # 检查定时任务
+                schedule.run_pending()
+                
+                # 更新实时价格（每1秒更新一次）
+                update_real_time_prices()
+                time.sleep(1)
+            except Exception as e:
+                print(f"价格更新异常: {e}")
+                time.sleep(5)
+    except Exception as e:
+        print(f"价格更新工作线程异常: {e}")
 
 @app.route('/')
 def index():
